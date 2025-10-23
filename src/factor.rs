@@ -131,6 +131,8 @@ impl Factor {
         new_factor
     }
 
+
+
     pub fn extra_columns(&self) -> usize {
         if self.one_hot {
             self.levels.len()
@@ -161,45 +163,66 @@ impl Factor {
         
     }
 
-    /// Push a value for this factor.
-    /// Returns:
-    /// - f64: the numeric index for this value
-    /// - String the column name the value should be added to
-    /// - Option<Vec<String>>: all one-hot columns if one-hot
-    pub fn push(&mut self, value: &str) -> (f64, String,  Option<Vec<String>>) {
+    // Return (and possibly insert) the numeric index for a given level.
+    ///
+    /// If the level does not exist yet, it is added to `levels`,
+    /// and the internal maps (`level_to_index` and `index_to_level`) are updated.
+    ///
+    /// Special cases:
+    /// - Empty strings or "NA" → return NaN.
+    pub fn level_to_index(&mut self, value: &str) -> f64 {
         let trimmed = value.trim();
 
-        // Handle one-hot encoding
-        let ret = if self.one_hot {
-            //println!("See we have a one_hot here! {} - trimmed {}", self.column_name, trimmed);
-            let idx = if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
-                f64::NAN
-            }else {
-                1.0
-            };
-            // all other levels become zero columns
-            let zero_cols = self.all_column_names( );
-            let zero_cols_option = if zero_cols.len() == 1 { None } else { Some(zero_cols) };
-            (idx, self.build_one_hot_column( trimmed ) , zero_cols_option)
+        // Handle missing values
+        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
+            return f64::NAN;
+        }
+
+        // For one-hot encoding, presence means 1.0 — but we still must register the level
+        if self.one_hot {
+            if !self.level_to_index.contains_key(trimmed) {
+                let new_idx = self.levels.len() as f64;
+                self.levels.push(trimmed.to_string());
+                self.level_to_index.insert(trimmed.to_string(), new_idx);
+                self.index_to_level.insert(OrderedFloat(new_idx), trimmed.to_string());
+            }
+            return 1.0;
+        }
+
+        // For dense encoding: assign incremental indices
+        if let Some(&idx) = self.level_to_index.get(trimmed) {
+            idx
         } else {
-            let idx = if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
-                f64::NAN
-            }else {
-                // Determine numeric index
-                if let Some(&i) = self.level_to_index.get(trimmed) {
-                    i
-                } else {
-                    let new_idx = self.levels.len() as f64;
-                    self.levels.push(trimmed.to_string());
-                    self.level_to_index.insert(trimmed.to_string(), new_idx);
-                    self.index_to_level.insert(OrderedFloat(new_idx), trimmed.to_string());
-                    new_idx
-                }
-            };
-            (idx, self.column_name.to_string() , None)
-        };
-        //println!("   We '{}' return a value of {}", ret.1, ret.0);
-        ret
+            let new_idx = self.levels.len() as f64;
+            self.levels.push(trimmed.to_string());
+            self.level_to_index.insert(trimmed.to_string(), new_idx);
+            self.index_to_level.insert(OrderedFloat(new_idx), trimmed.to_string());
+            new_idx
+        }
+    }
+
+    /// Push a value for this factor.
+    ///
+    /// Returns:
+    /// - f64: numeric index (or binary for one-hot)
+    /// - String: name of the column to update
+    /// - Option<Vec<String>>: all one-hot columns (if applicable)
+    pub fn push(&mut self, value: &str) -> (f64, String, Option<Vec<String>>) {
+        let trimmed = value.trim();
+
+        if self.one_hot {
+            // Ensure level is registered and retrieve index behavior
+            let idx = self.level_to_index(trimmed);
+
+            // all other levels become zero columns
+            let zero_cols = self.all_column_names();
+            let zero_cols_option = if zero_cols.len() == 1 { None } else { Some(zero_cols) };
+
+            (idx, self.build_one_hot_column(trimmed), zero_cols_option)
+        } else {
+            let idx = self.level_to_index(trimmed);
+            (idx, self.column_name.to_string(), None)
+        }
     }
 
 

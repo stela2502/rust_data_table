@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path};
 use csv::{ WriterBuilder};
-use ndarray::{Array2, Axis, s};
+use ndarray::{Array2, Axis, s, concatenate};
 use anyhow::Result;
 use serde::{Serialize, Deserialize};
 use serde_json;
@@ -19,6 +19,7 @@ pub struct SurvivalData {
     pub numeric_data: Array2<f64>,
     pub factors: HashMap<String, Factor>,
     pub exclude: HashSet<String>,
+    header_lookup: HashMap<String, usize>,
     //pub max_levels: usize,
 }
 
@@ -29,6 +30,7 @@ impl Default for SurvivalData {
             numeric_data: Array2::zeros((0, 0)),
             factors: HashMap::new(),
             exclude: HashSet::new(),
+            header_lookup: HashMap::new(),
         }
     }
 }
@@ -87,7 +89,7 @@ impl SurvivalData {
             }})
         .collect();
 
-        let header_lookup: HashMap< String, usize> = headers
+        ret.header_lookup = headers
             .iter()
             .enumerate()
             .map(|(id, name)|(name.clone(), id))
@@ -261,6 +263,133 @@ Notes: This factor is categorical with no inherent order, so it’s a good candi
         Ok(ret)
     }
 
+    /// Add a new data row (group) initialized with NaN values across all columns (cells).
+    ///
+    /// Each row represents a dataset or feature.
+    /// If this is the first row added, you must specify the expected number of columns via `size`.
+    /// If `is_factor` is true, a corresponding `Factor` is also created and registered.
+    ///
+    /// # Panics
+    /// Panics if the data table is empty and no `size` is provided.
+    ///
+    /// # Example
+    /// ```
+    /// data.add_dataset("age", false, Some(10));     // first row → needs size
+    /// data.add_dataset("treatment", true, None);    // second row → inferred columns
+    /// ```
+    pub fn add_dataset(&mut self, dataset_name: &str, is_factor: bool, size: Option<usize>) {
+        // Don't add the same dataset twice
+        if self.headers.contains(&dataset_name.to_string()) {
+            #[cfg(debug_assertions)]
+            println!("Row '{}' already exists, skipping.", dataset_name);
+            return;
+        }
+
+        let n_rows = self.numeric_data.nrows();
+        let n_cols = self.numeric_data.ncols();
+
+        // Case 1: Empty table — initialize with one row and known number of columns
+        if n_rows == 0 {
+            let init_cols = size.unwrap_or_else(|| {
+                panic!("🛑 Must provide 'size' (number of cells) when adding the first dataset!");
+            });
+            self.numeric_data = Array2::<f64>::from_elem((1, init_cols), f64::NAN);
+        } else {
+            // Case 2: Append a new row of NaN across existing columns
+            let new_row = Array2::<f64>::from_elem((1, n_cols), f64::NAN);
+            self.numeric_data = concatenate(Axis(0), &[self.numeric_data.view(), new_row.view()])
+                .expect("❌ Failed to concatenate new row");
+        }
+
+        // Register dataset name (row name)
+        self.headers.push(dataset_name.to_string());
+
+        // Register mapping for fast lookup
+        let row_idx = self.numeric_data.nrows() - 1;
+
+        self.header_lookup.insert(dataset_name.to_string(), row_idx);
+
+        // Optionally register a Factor
+        if is_factor {
+            self.factors
+                .insert(dataset_name.to_string(), Factor::new(dataset_name, false));
+        }
+
+        #[cfg(debug_assertions)]
+        println!(
+            "✅ Added dataset row '{}' (factor={}) → total rows: {}, columns: {}",
+            dataset_name,
+            is_factor,
+            self.numeric_data.nrows(),
+            self.numeric_data.ncols()
+        );
+    }
+
+    /// Update a single cell by dataset (row) name and sample (column) index.
+    /// Returns true if successful, false if the dataset or index is invalid.
+    pub fn update_value(&mut self, dataset_name: &str, col: usize, value: f64) -> bool {
+        // Look up the row index for this dataset
+        let row_idx = match self.header_lookup.get(dataset_name) {
+            Some(idx) => idx,
+            None => {
+                eprintln!(
+                    "⚠️ update_value(): dataset '{}' not found. Headers: {:?}",
+                    dataset_name, self.headers
+                );
+                return false;
+            }
+        };
+
+        let (n_rows, n_cols) = self.numeric_data.dim();
+        if *row_idx >= n_rows {
+            eprintln!(
+                "🛑 Row index {} out of bounds (rows={}) for dataset '{}'",
+                row_idx, n_rows, dataset_name
+            );
+            return false;
+        }
+        if col >= n_cols {
+            eprintln!(
+                "🛑 Column index {} out of bounds (cols={}) for dataset '{}'",
+                col, n_cols, dataset_name
+            );
+            return false;
+        }
+
+        self.numeric_data[[*row_idx, col]] = value;
+
+        #[cfg(debug_assertions)]
+        println!(
+            "✅ Set value {} at row '{}' (idx={}) column {}",
+            value, dataset_name, row_idx, col
+        );
+
+        true
+    }
+
+    /// Update a single cell by dataset name and row index.
+    /// Returns true if successful, false if the column or index is invalid.
+    pub fn update_value_str(&mut self, dataset_name: &str, col: usize, value: &str) -> bool {
+        if let Some( fact ) = self.factors.get_mut( dataset_name ){
+            let val = fact.level_to_index( value );
+            self.update_value( dataset_name, col, val)
+        }else{
+            // Numeric column → try to parse directly
+            match value.trim().parse::<f64>() {
+                Ok(v) => self.update_value(dataset_name, col, v),
+                Err(_) => {
+                    eprintln!(
+                        "Value '{}' not recognized for column '{}'",
+                        value, dataset_name
+                    );
+                    false
+                }
+            }
+        }
+    }
+
+
+
     /// Split into train and test by a fraction (e.g. 0.7 = 70% train, 30% test).
     pub fn train_test_split(&self, train_fraction: f64) -> (SurvivalData, SurvivalData) {
         assert!(train_fraction > 0.0 && train_fraction < 1.0);
@@ -283,6 +412,7 @@ Notes: This factor is categorical with no inherent order, so it’s a good candi
             numeric_data: data,
             factors: self.factors.clone(),
             exclude: self.exclude.clone(),
+            header_lookup: self.header_lookup.clone(),
         };
 
         (make_subset(train_data), make_subset(test_data))
@@ -998,5 +1128,62 @@ Na,Na
         }
 
         Ok(())
+    }
+
+        #[test]
+    fn test_update_value_and_update_value_str() {
+        // --- Setup ---
+        let mut data = SurvivalData::default();
+
+        // Add numeric and factor columns
+        data.add_dataset("age", false, Some(10));
+        data.add_dataset("treatment", true, None);
+
+        // --- 1️⃣ Normal numeric update ---
+        assert!(data.update_value("age", 0, 42.0));
+        assert_eq!(data.numeric_data[[0, 0]], 42.0);
+
+        // --- 2️⃣ Out-of-bounds numeric update ---
+        assert!(!data.update_value("age", 10, 46.0)); // Should print error, return false
+
+        // --- 3️⃣ Factor update (new level insertion) ---
+        assert!(data.update_value_str("treatment", 0, "DrugA"));
+        assert!(data.update_value_str("treatment", 1, "DrugB"));
+
+        // Factor should contain both levels now
+        let factor = data.factors.get("treatment").unwrap();
+        let levels = factor.get_levels();
+        assert_eq!(levels, vec!["DrugA", "DrugB"]);
+
+        // Check numeric encoding values (0.0, 1.0)
+        let row_idx = data.headers.iter().position(|h| h == "treatment").unwrap();
+        assert_eq!(data.numeric_data[[row_idx, 0]], 0.0);
+        assert_eq!(data.numeric_data[[row_idx, 1]], 1.0);
+
+        // --- 4️⃣ Numeric update via update_value_str ---
+        assert!(data.update_value_str("age", 1, "39.5"));
+        assert_eq!(data.numeric_data[[0, 1]], 39.5);
+
+        // --- 5️⃣ Non-factor string value to numeric column (should fail gracefully) ---
+        assert!(!data.update_value_str("age", 2, "NaNish"));
+
+        // --- 6️⃣ Out-of-bounds update via update_value_str ---
+        assert!(!data.update_value_str("age", 10, "46"));
+
+        // --- 7️⃣ Factor update with existing value (should not create new level) ---
+        assert!(data.update_value_str("treatment", 2, "DrugA"), "update_value_str() failed for dataset='treatment', column=2, value='DrugA'. \
+             Factors present: {:?}, headers: {:?}, numeric shape: {:?}",
+            data.factors.keys().collect::<Vec<_>>(),
+            data.headers,
+            data.numeric_data.dim()
+        );
+        let factor = data.factors.get("treatment").unwrap();
+        let levels = factor.get_levels();
+        assert_eq!(levels, vec!["DrugA", "DrugB"]); // still only two levels
+
+        // --- 8️⃣ Unknown column name ---
+        assert!(!data.update_value_str("unknown", 0, "123.0"));
+
+        println!("{}", data);
     }
 }
