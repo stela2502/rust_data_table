@@ -274,6 +274,8 @@ Notes: This factor is categorical with no inherent order, so it’s a good candi
     ///
     /// # Example
     /// ```
+    /// use rust_data_table::SurvivalData;
+    /// let mut data = SurvivalData::default();
     /// data.add_dataset("age", false, Some(10));     // first row → needs size
     /// data.add_dataset("treatment", true, None);    // second row → inferred columns
     /// ```
