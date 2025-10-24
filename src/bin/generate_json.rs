@@ -81,7 +81,18 @@ NOTES:
     let factors_file = matches
         .get_one::<String>("factors_file")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("factors.tsv"));
+        .unwrap_or_else(|| {
+            let mut p = input_path.clone();
+            // Remove existing extension (.tsv, .csv, etc.)
+            p.set_extension(""); 
+            // Append the new suffix
+            let mut new_name = p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| format!("{}.factors.json", n))
+                .unwrap_or_else(|| "factors.json".to_string());
+            p.set_file_name(new_name);
+            p
+        });
 
     if factors_file.exists(){
         println!("factors file already exists - no need to run this.");
@@ -91,14 +102,21 @@ NOTES:
     println!("📘 Factors file: {:?}", factors_file);
     println!("Categorical cols: {:?}", categorical_cols);
 
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!("💥 Internal panic: {}", info);
+    }));
+
     match SurvivalData::from_file(
         &input_path,
         delimiter,
         categorical_cols,
         &factors_file
     ) {
-        Ok(_) => println!("This is trange - this should actually fail here!"),
-        Err(_) => (),
+        Ok(_) => println!("This is strange - this should actually fail here!"),
+        Err(e) => {
+            println!("The hoefully expected error from the lib: {:?}",e);
+            ()
+        },
     }
 
     println!("✅ JSON successfully written to {:?}", factors_file);
