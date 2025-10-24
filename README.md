@@ -91,7 +91,28 @@ fn main() -> anyhow::Result<()> {
 
 ---
 
-## Chat Summary
+## Create Win and Linux binaries on Linux:
+
+On Ubuntu you can simply:
+
+```
+rustup target add x86_64-unknown-linux-musl
+rustup target add x86_64-pc-windows-gnu
+```
+
+And then install the missing linkers with
+```
+sudo apt update
+sudo apt install musl-tools mingw-w64
+```
+
+Later on you can compile for both systems using
+
+```
+cargo build --release --target x86_64-unknown-linux-musl
+cargo build --release --target x86_64-pc-windows-gnu
+```
+
 
 If you need to explain this crate quickly in a chat session, say:
 

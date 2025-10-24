@@ -1,0 +1,30 @@
+name: Build binaries
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install linkers
+        run: sudo apt update && sudo apt install -y musl-tools mingw-w64
+      - name: Add targets
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          rustup target add x86_64-pc-windows-gnu
+      - name: Build binaries
+        run: |
+          cargo build --release --target x86_64-unknown-linux-musl
+          cargo build --release --target x86_64-pc-windows-gnu
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: generate_json-binaries
+          path: |
+            target/x86_64-unknown-linux-musl/release/generate_json
+            target/x86_64-pc-windows-gnu/release/generate_json.exe
