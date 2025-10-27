@@ -230,8 +230,8 @@ impl Factor {
        *self.level_to_index.get(trimmed).unwrap_or( &f64::NAN )
     }
 
-    pub fn get_levels(&self) -> Vec<String> {
-        self.levels.clone()
+    pub fn get_levels(&self) -> &[String] {
+        &self.levels
     }
     pub fn get_string(&self, value:f64 ) -> String {
         match self.index_to_level.get( &OrderedFloat(value)){
