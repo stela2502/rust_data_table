@@ -85,6 +85,30 @@ impl Factor {
     }
     */
 
+    /// Compare level names between two Factors.
+    /// Returns Ok(()) if identical, or Err(msg) describing the mismatch.
+    pub fn compare_levels(&self, other: &Self) -> Result<(), String> {
+        if self.levels.len() != other.levels.len() {
+            return Err(format!(
+                "Level count mismatch: expected {} vs found {}",
+                self.levels.len(),
+                other.levels.len()
+            ));
+        }
+
+        for (i, (a, b)) in self.levels.iter().zip(other.levels.iter()).enumerate() {
+            if a != b {
+                return Err(format!(
+                    "Mismatch at index {}: expected '{}' but found '{}'",
+                    i, a, b
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+
     /// Subset factor with **extreme verbosity**.
     pub fn subset(&self, data: &Array2<f64>, col_id: usize) -> Self {
         //println!("➡️ Starting subset for factor '{}', column id {}", self.column_name, col_id);
