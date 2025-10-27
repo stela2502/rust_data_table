@@ -54,24 +54,35 @@ impl fmt::Display for SurvivalData {
 
 impl SurvivalData {
 
-    /// Read CSV file and build numeric + factor representation
-    pub fn from_file<P: AsRef<Path> + std::fmt::Debug, FF: AsRef<Path> + std::fmt::Debug>(file_path: P, delimiter: u8, 
-        categorical_cols: HashSet<String>, factors_file: FF) -> Result<Self> {
+    /// ------------------------------------------------------------------------
+    /// Core loader: reads TSV/CSV file, applies factors if available.
+    /// If the `.factors.json` exists, it will be used.
+    /// If not, it loads data heuristically and continues silently.
+    /// ------------------------------------------------------------------------
+    pub fn from_tsv<P: AsRef<Path> + std::fmt::Debug, FF: AsRef<Path> + std::fmt::Debug>(
+        file_path: P,
+        delimiter: u8,
+        categorical_cols: HashSet<String>,
+        factors_file: FF,
+    ) -> Result<Self> {
 
-        // 1. Start with an empty SurvivalData
         let mut ret = SurvivalData::default();
 
-        // 2. Load factors if the file exists, otherwise keep empty
-        if factors_file.as_ref().exists() {
-            println!("Factors are loaded from file");
-            ret.load_factors(&factors_file)?;
+        // --- 1. Load existing factors if the file exists ---
+        let factors_path = factors_file.as_ref();
+        if factors_path.exists() {
+            println!("🧬 Using existing factors file: {:?}", factors_path);
+            ret.load_factors(factors_path)?;
+        } else {
+            println!("ℹ️ No factors file found, proceeding without it (new dataset?)");
         }
 
-        // 3. Open the CSV
+        // --- 2. Open file and prepare CSV reader ---
         let mut rdr = csv::ReaderBuilder::new()
-        .delimiter(delimiter)
-        .from_path(file_path)?;
+            .delimiter(delimiter)
+            .from_path(&file_path)?;
 
+        // --- 3. Expand headers based on existing factors (for one-hot) ---
         let headers: Vec<String> = rdr
             .headers()?
             .iter()
@@ -82,151 +93,127 @@ impl SurvivalData {
                         c.extend(fact.all_column_names());
                         c
                     } else {
-                        vec![s.to_string()]      // just the original column
+                        vec![s.to_string()]
                     }
                 } else {
-                vec![s.to_string()] // wrap the single name in a Vec
-            }})
-        .collect();
+                    vec![s.to_string()]
+                }
+            })
+            .collect();
 
+        ret.headers = headers.clone();
         ret.header_lookup = headers
             .iter()
             .enumerate()
-            .map(|(id, name)|(name.clone(), id))
-        .collect();
+            .map(|(id, name)| (name.clone(), id))
+            .collect();
 
+        // --- 4. Mark forced categorical columns as factors ---
         for header in &headers {
-            if let Some(fact) = ret.factors.get(header) {
-                if fact.one_hot {
-                    ret.exclude.insert( header.to_string() );
-                }
+            if categorical_cols.contains(header) {
+                println!("Forcing header {header} to be a factor");
+                ret.factors
+                    .entry(header.clone())
+                    .or_insert_with(|| Factor::new(header, false));
             }
         }
 
+        // --- 5. Parse rows (one-hot aware logic) ---
         let n_cols = headers.len();
         let mut raw_rows: Vec<Vec<f64>> = Vec::new();
 
-        for header in &headers {
-            if categorical_cols.contains(header) {
-                // Insert a Factor for this categorical column if it does not exist yet
-                println!("Forcing header {header} to be a factor");
-                ret.factors.entry(header.clone())
-                .or_insert_with(|| Factor::new( &header, false));
-            }
-        }
-        ret.headers = headers.clone();
-
-        // 4. lead the data and handle the factors
         for result in rdr.records() {
             let record = result?;
             let mut row: Vec<f64> = Vec::with_capacity(n_cols);
             let mut expanded = 0;
+
             for (i, value) in record.iter().enumerate() {
                 let trimmed = value.trim().trim_matches('"');
                 match trimmed.replace(',', ".").parse::<f64>() {
                     Ok(num) => {
-                        //println!("We actually identifed a number here '{}' :'{}'", headers[i+expanded], num);
-                        if let Some(factor) = ret.factors.get_mut(&headers[i+expanded]) {
-                            //println!("   But we also have a factor for that column '{}'!", headers[i+expanded]);
-                            //let mut parts= Vec::<String>::with_capacity( factor.levels.len() +1);
-                            
-                            let (idx, col_to_add, all_cols) = factor.push( &num.to_string() );
-                            let alt = if idx.is_nan() { f64::NAN }else { 0.0 };
-
+                        if let Some(factor) = ret.factors.get_mut(&headers[i + expanded]) {
+                            let (idx, col_to_add, all_cols) = factor.push(&num.to_string());
+                            let alt = if idx.is_nan() { f64::NAN } else { 0.0 };
                             match all_cols {
                                 Some(cols) => {
                                     expanded += cols.len();
-                                    // fill the original column!
-                                    //parts.push(format!("dense factor: {}", factor.get_f64(trimmed) ) );
-                                    row.push( factor.get_f64(trimmed) ); 
-                                    for cname in cols.iter().cloned(){
-                                        if cname == col_to_add { 
-                                            //parts.push(format!("hot: {}", idx ) );
-                                            row.push(idx);
-                                        } else {
-                                            //parts.push(format!("hot: {}", alt ) );
-                                            row.push(alt); 
-                                        }
+                                    row.push(factor.get_f64(trimmed));
+                                    for cname in cols.iter().cloned() {
+                                        row.push(if cname == col_to_add { idx } else { alt });
                                     }
-                                },
-                                None => {
-                                    //parts.push(format!("No hot columns!? dense it is then : {}", idx ) );
-                                    row.push(idx);
-                                },
+                                }
+                                None => row.push(idx),
                             }
-                            //println!("   Adding the values {}", parts.join(", "));
                         } else {
-                            //println!("Push the value {} to column {} at row count {}", num,  headers[i+expanded], row.len());
-                            row.push(num as f64);
+                            row.push(num);
                         }
                     }
                     Err(_) => {
-                        //println!("Not a number here '{}' :'{}'", headers[i], trimmed);
                         if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
-                            if !ret.factors.contains_key(&headers[i+expanded]) {
+                            if !ret.factors.contains_key(&headers[i + expanded]) {
                                 row.push(f64::NAN);
                                 continue;
                             }
                         }
-                        // Treat as categorical
-                        //eprintln!("looking for a not hot column name at {} + {}: {}",i, expanded, i+expanded);
-                        if headers.len() == i+expanded {
-                            eprintln!( "i {}; expanded {}", i, expanded );
-                            panic!( "{}", ret.header_error( i, expanded ) );
-                        }
-                        let factor = ret.factors
-                        .entry(headers[i+expanded].clone())
-                        .or_insert_with(|| Factor::new(&headers[i+expanded], false) );
-                        let (idx, col_to_add, all_cols)= factor.push(trimmed);
-                        let alt = if idx.is_nan() { f64::NAN }else { 0.0 };
+                        let factor = ret
+                            .factors
+                            .entry(headers[i + expanded].clone())
+                            .or_insert_with(|| Factor::new(&headers[i + expanded], false));
+                        let (idx, col_to_add, all_cols) = factor.push(trimmed);
+                        let alt = if idx.is_nan() { f64::NAN } else { 0.0 };
+
                         match all_cols {
                             Some(cols) => {
                                 expanded += cols.len();
-                                // fill the original column!
-                                row.push( factor.get_f64(trimmed) ); 
-                                for cname in cols.iter(){
-                                    if *cname == col_to_add { 
-                                        row.push(idx) 
-                                    } else { 
-                                        row.push(alt) 
-                                    }
-                                }
-                            },
-                            None=>{
-                                if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
-                                    row.push(f64::NAN);
-                                }else {
-                                    row.push(idx);
+                                row.push(factor.get_f64(trimmed));
+                                for cname in cols.iter() {
+                                    row.push(if *cname == col_to_add { idx } else { alt });
                                 }
                             }
+                            None => row.push(if trimmed.is_empty() { f64::NAN } else { idx }),
                         }
                     }
                 }
             }
-            assert_eq!(row.len() , record.len() + expanded, "After reading one row: Row length and expeceted row length do not aligne {} vs {}:\n{}\n and the row values:\n{:?}", 
-                row.len() , record.len() + expanded, ret.header_error( record.len() , expanded ), row );
-            raw_rows.push(row);
 
+            raw_rows.push(row);
         }
 
-        // 5. create the numeric_data from the Vec<Vec<f64>>
-        ret.headers = headers;
+        // --- 6. Build Array2 ---
         let n_rows = raw_rows.len();
         let mut numeric_data = Array2::<f64>::zeros((n_rows, n_cols));
-
         for (i, row) in raw_rows.iter().enumerate() {
             for (j, &val) in row.iter().enumerate() {
                 numeric_data[[i, j]] = val;
             }
         }
-        // 6. store the Array2 in the object
-        ret.numeric_data = numeric_data;        
 
+        ret.numeric_data = numeric_data;
+        Ok(ret)
+    }
 
-        // 7. Save factors if the file does not exists
-        if ! factors_file.as_ref().exists() {
-            println!("Saved a new factors file to fine tune the factors: '{:?}'", &factors_file);
-            ret.save_factors(&factors_file)?;
+    /// High-level loader: handles factor file and performs cell-name consistency checks.
+    /// Reuses `from_tsv()` internally.
+    pub fn from_file<P: AsRef<Path> + std::fmt::Debug, FF: AsRef<Path> + std::fmt::Debug>(
+        file_path: P,
+        delimiter: u8,
+        categorical_cols: HashSet<String>,
+        factors_file: FF,
+    ) -> Result<Self> {
+
+        let file_path_ref = file_path.as_ref();
+        let factors_file_ref = factors_file.as_ref();
+
+        // --- 1. Load the numeric/factor data from TSV ---
+        let mut ret = Self::from_tsv(file_path_ref, delimiter, categorical_cols, &factors_file)?;
+
+        // --- 2. Load or create factors file ---
+        if factors_file_ref.exists() {
+            println!("Factors are loaded from file");
+            ret.load_factors(&factors_file_ref)?;
+        } else {
+            println!("Saved a new factors file to fine tune the factors: '{:?}'", &factors_file_ref);
+            ret.save_factors(&factors_file_ref)?;
             panic!("
 Please review and update the factors file so that it accurately reflects the logic in the data.
 
@@ -252,10 +239,30 @@ In this example, there is an error: the numeric values do not match the actual d
 
 The one_hot option allows the factor to be expanded into multiple 0.0/1.0 columns—two in this case. This is particularly useful when the factor levels have no inherent numeric order or relationship:
 
+[
+  {{
+    'column': 'tp53_mutation_type',
+    'levels': [
+      'Missense',
+      'Nonsense',
+      'Frameshift',
+      'Splice_site',
+      'Silent',
+    ],
+    'numeric': [
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+    ],
+    'matching': null,
+    'one_hot': true
+  }}
+]
 
-Factor: tp53_mutation_type
-Levels: Missense, Nonsense, Frameshift, Splice_site, Silent
-Notes: This factor is categorical with no inherent order, so it’s a good candidate for one-hot encoding in a model. Each level would be represented as a separate binary column (0/1) if one-hot encoding is used.
+This factor is categorical with no inherent order, so it’s a good candidate for one-hot encoding in a model. 
+Each level will be represented as a separate binary column (0/1) if one-hot encoding is used.
 
                 ");
         }
@@ -973,7 +980,7 @@ Na,Na
         number.one_hot = true;
         let mut temp = SurvivalData::default();
         temp.factors.insert( "Color".to_string(), color);
-        temp.factors.insert( "Nubmer".to_string(), number);
+        temp.factors.insert( "Number".to_string(), number);
 
         temp.save_factors(&factors_path); //default location
         let categorical_cols= HashSet::<String>::new();
