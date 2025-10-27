@@ -87,6 +87,13 @@ impl SurvivalData {
             .headers()?
             .iter()
             .flat_map(|s| {
+                // 💡 handle R-style empty header (rownames column)
+                let header_name = if s.trim().is_empty() {
+                    println!("⚠️ Detected unlabeled first(?) column -> treating as 'barcode'");
+                    "barcode".to_string()
+                } else {
+                    s.to_string()
+                };
                 if let Some(fact) = ret.factors.get(s) {
                     if fact.one_hot {
                         let mut c = vec![s.to_string()];
