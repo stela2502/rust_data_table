@@ -20,6 +20,7 @@ pub struct SurvivalData {
     pub factors: HashMap<String, Factor>,
     pub exclude: HashSet<String>,
     header_lookup: HashMap<String, usize>,
+    next_order: f64,
     //pub max_levels: usize,
 }
 
@@ -31,6 +32,7 @@ impl Default for SurvivalData {
             factors: HashMap::new(),
             exclude: HashSet::new(),
             header_lookup: HashMap::new(),
+            next_order: 0.0,
         }
     }
 }
@@ -372,15 +374,51 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
             return false;
         }
 
-        self.numeric_data[[*row_idx, col]] = value;
+        if self.numeric_data[[*row_idx, col]] == value{
+            false
+        }else {
+            self.numeric_data[[*row_idx, col]] = value;
+            true
+        }
+    }
 
-        #[cfg(debug_assertions)]
-        println!(
-            "✅ Set value {} at row '{}' (idx={}) column {}",
-            value, dataset_name, row_idx, col
-        );
+    /// Update a single cell by dataset (row) name and sample (column) index.
+    /// The value will represent the order in which this function is called.
+    /// reset the order with self.reset_order().
+    pub fn update_order(&mut self, dataset_name: &str, col: usize) -> bool {
+        // Look up the row index for this dataset
+        let row_idx = match self.header_lookup.get(dataset_name) {
+            Some(idx) => idx,
+            None => {
+                eprintln!(
+                    "⚠️ update_value(): dataset '{}' not found. Headers: {:?}",
+                    dataset_name, self.headers
+                );
+                return false;
+            }
+        };
+        let (n_rows, n_cols) = self.numeric_data.dim();
+        if *row_idx >= n_rows {
+            eprintln!(
+                "🛑 Row index {} out of bounds (rows={}) for dataset '{}'",
+                row_idx, n_rows, dataset_name
+            );
+            return false;
+        }
+        if col >= n_cols {
+            eprintln!(
+                "🛑 Column index {} out of bounds (cols={}) for dataset '{}'",
+                col, n_cols, dataset_name
+            );
+            return false;
+        }
 
+        self.numeric_data[[*row_idx, col]] = self.next_order;
+        self.next_order +=1.0;
         true
+    }
+    pub fn reset_order(&mut self) {
+        self.next_order = 0.0;
     }
 
     /// Update a single cell by dataset name and row index.
@@ -423,13 +461,16 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         let train_data = self.numeric_data.select(Axis(0), train_idx);
         let test_data = self.numeric_data.select(Axis(0), test_idx);
 
+
         let make_subset = |data: Array2<f64>| SurvivalData {
             headers: self.headers.clone(),
             numeric_data: data,
             factors: self.factors.clone(),
             exclude: self.exclude.clone(),
             header_lookup: self.header_lookup.clone(),
+            ..Default::default()
         };
+
 
         (make_subset(train_data), make_subset(test_data))
     }
@@ -1146,7 +1187,7 @@ Na,Na
         Ok(())
     }
 
-        #[test]
+    #[test]
     fn test_update_value_and_update_value_str() {
         // --- Setup ---
         let mut data = SurvivalData::default();
@@ -1201,5 +1242,40 @@ Na,Na
         assert!(!data.update_value_str("unknown", 0, "123.0"));
 
         println!("{}", data);
+    }
+
+    #[test]
+    fn test_order() {
+        let mut sd = SurvivalData::default();
+
+        // 1️⃣ create a new dataset column with 10 entries
+        sd.add_dataset("group_000", true, Some(10));
+        assert!(sd.factors.contains_key("group_000"));
+        let f = sd.factors.get("group_000").unwrap();
+        assert!(
+            sd.numeric_data[[0, 3]].is_nan(),
+            "initially we have NaN here"
+        );
+
+        // 2️⃣ update one entry (name, col, value)
+        let changed = sd.update_value("group_000", 3, 1.0);
+        assert!(changed);
+
+        // 3️⃣ updating again with the same value should return false
+        let changed_again = sd.update_value("group_000", 3, 1.0);
+        assert!(!changed_again);
+
+        // 4️⃣ add the order column and update order
+        sd.add_dataset("group_000_order", false, None);
+        assert!(sd.headers.contains(&"group_000_order".to_string()));
+
+        sd.update_order("group_000_order", 3);
+        assert_eq!( sd.numeric_data[[1,3]], 0.0, "First order gets 0.0");
+        sd.update_order("group_000_order", 1);
+        assert_eq!( sd.numeric_data[[1,1]], 1.0, "Second order gets 1.0");
+
+        // 5️⃣ verify reset_order() resets all to "0"
+        sd.reset_order();
+        assert_eq!(sd.next_order, 0.0, "reset resets to zero");
     }
 }
