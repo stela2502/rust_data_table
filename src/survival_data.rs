@@ -1036,8 +1036,6 @@ mod tests_one_hot_factors {
     }
 }
 
-#[cfg(test)]
-
 
 mod tests_survival_data_from_file_one_hot_factors {
     
