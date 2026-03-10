@@ -1,6 +1,6 @@
 [package]
-name = "stela_data_table"
-version = "0.1.0"
+name = "data_table"
+version = "0.22.0"
 edition = "2024"
 
 description = "A lightweight Rust data table structure supporting numeric columns and categorical factors."

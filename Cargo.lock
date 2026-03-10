@@ -144,6 +144,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "data_table"
+version = "0.22.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "csv",
+ "ndarray",
+ "ordered-float",
+ "rand",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -423,21 +438,6 @@ dependencies = [
  "ryu",
  "serde",
  "serde_core",
-]
-
-[[package]]
-name = "stela_data_table"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "csv",
- "ndarray",
- "ordered-float",
- "rand",
- "serde",
- "serde_json",
- "tempfile",
 ]
 
 [[package]]
