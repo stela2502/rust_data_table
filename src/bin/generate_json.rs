@@ -86,7 +86,7 @@ NOTES:
             // Remove existing extension (.tsv, .csv, etc.)
             p.set_extension("");
             // Append the new suffix
-            let mut new_name = p
+            let new_name = p
                 .file_name()
                 .and_then(|n| n.to_str())
                 .map(|n| format!("{}.factors.json", n))
@@ -111,7 +111,7 @@ NOTES:
         Ok(_) => println!("This is strange - this should actually fail here!"),
         Err(e) => {
             println!("The hoefully expected error from the lib: {:?}", e);
-            ()
+            
         }
     }
 

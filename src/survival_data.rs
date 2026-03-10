@@ -3,8 +3,7 @@ use anyhow::Result;
 use csv::WriterBuilder;
 use ndarray::{Array2, Axis, concatenate, s};
 use rand::seq::SliceRandom;
-use rand::thread_rng;
-use serde::{Deserialize, Serialize};
+use rand::rng;
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -50,7 +49,7 @@ impl fmt::Display for DataTable {
             writeln!(f, "  {}: {}", idx, header)?;
         }
         writeln!(f, "Factors:")?;
-        for (_name, factor) in &self.factors {
+        for factor in self.factors.values() {
             writeln!(f, "{}", factor);
         }
         writeln!(f, "Excluded columns: {:?}", self.exclude)
@@ -159,12 +158,11 @@ impl DataTable {
                         }
                     }
                     Err(_) => {
-                        if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA") {
-                            if !ret.factors.contains_key(&headers[i + expanded]) {
+                        if (trimmed.is_empty() || trimmed.eq_ignore_ascii_case("NA"))
+                            && !ret.factors.contains_key(&headers[i + expanded]) {
                                 row.push(f64::NAN);
                                 continue;
                             }
-                        }
                         let factor = ret
                             .factors
                             .entry(headers[i + expanded].clone())
@@ -219,13 +217,13 @@ impl DataTable {
         // --- 2. Load or create factors file ---
         if factors_file_ref.exists() {
             println!("Factors are loaded from file");
-            ret.load_factors(&factors_file_ref)?;
+            ret.load_factors(factors_file_ref)?;
         } else {
             println!(
                 "Saved a new factors file to fine tune the factors: '{:?}'",
                 &factors_file_ref
             );
-            ret.save_factors(&factors_file_ref)?;
+            ret.save_factors(factors_file_ref)?;
             panic!("
 Please review and update the factors file so that it accurately reflects the logic in the data.
 
@@ -451,7 +449,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
 
         let n_rows = self.numeric_data.nrows();
         let mut indices: Vec<usize> = (0..n_rows).collect();
-        let mut rng = thread_rng();
+        let mut rng = rng();
         indices.shuffle(&mut rng);
 
         let train_size = (n_rows as f64 * train_fraction).round() as usize;
@@ -490,7 +488,6 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
     }
 
     pub fn data_summary(&self) {
-        return;
         println!(
             "Shape: {} rows x {} columns",
             self.numeric_data.nrows(),
@@ -755,7 +752,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         }
         self.numeric_data = filtered;
     }
-
+    /*
     /// Remove columns with variance below `threshold`
     pub fn filter_low_var(&mut self, threshold: f64) -> usize {
         return 0;
@@ -802,6 +799,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         self.factors.retain(|name, _| self.headers.contains(name));
         filtered
     }
+    */
 
     /// Compute fraction of NAs per feature column
     pub fn feature_na_fraction(&self) -> HashMap<String, f64> {
@@ -986,8 +984,8 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
 #[cfg(test)]
 mod tests_one_hot_factors {
     use super::*;
-    use std::collections::HashSet;
-    use std::fs;
+    
+    
 
     #[test]
     fn test_save_and_load_factors() -> Result<(), Box<dyn std::error::Error>> {
@@ -1041,11 +1039,11 @@ mod tests_one_hot_factors {
 use std::path::PathBuf;
 
 mod tests_survival_data_from_file_one_hot_factors {
-    use super::*;
-    use std::collections::HashSet;
-    use std::fs::{self, File};
-    use std::io::Write;
-    use tempfile::tempdir;
+    
+    
+    
+    
+    
 
     #[test]
     fn test_survivaldata_one_hot_factors() -> Result<(), Box<dyn std::error::Error>> {

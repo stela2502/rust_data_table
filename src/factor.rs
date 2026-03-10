@@ -2,8 +2,7 @@ use anyhow::Result;
 use ndarray::Array2;
 use ordered_float::OrderedFloat;
 use serde::{Deserialize, Serialize};
-use serde_json;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
 
 /// Only save labels in JSON
@@ -329,7 +328,7 @@ impl Factor {
             Some(levels) => {
                 // Modify only the specified levels
                 for (lvl, &val) in levels.iter().zip(numeric_values.iter()) {
-                    if self.levels.contains(&lvl) {
+                    if self.levels.contains(lvl) {
                         self.level_to_index.insert(lvl.clone(), val);
                         self.index_to_level.insert(OrderedFloat(val), lvl.clone());
                     } else {
@@ -395,7 +394,7 @@ mod tests {
 
         assert!(
             factor
-                .modify_levels(&[1.0], Some(&vec!["Yellow".to_string()]))
+                .modify_levels(&[1.0], Some(&["Yellow".to_string()]))
                 .is_err(),
             "Should panic when modifying non-existing level"
         );
