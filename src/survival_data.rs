@@ -290,7 +290,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
     ///
     /// # Example
     /// ```
-    /// use rust_data_table::DataTable;
+    /// use stela_data_table::DataTable;
     /// let mut data = DataTable::default();
     /// data.add_dataset("age", false, Some(10));     // first row → needs size
     /// data.add_dataset("treatment", true, None);    // second row → inferred columns

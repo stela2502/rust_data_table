@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use clap::{Arg, Command};
-use rust_data_table::DataTable;
+use stela_data_table::DataTable;
 
 fn main() -> anyhow::Result<()> {
     let matches = Command::new("generate_json")
