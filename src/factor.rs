@@ -359,12 +359,68 @@ impl Factor {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use ndarray::array;
     use ordered_float::OrderedFloat;
     use std::collections::HashMap;
+
+    use std::path::PathBuf;
+
+    use crate::{DataTable, Factor};
+    
+
+    #[test]
+    fn test_save_and_load_factors() -> Result<(), Box<dyn std::error::Error>> {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let factors_path = dir.as_path().join("factors.json");
+
+        // --- Create Factors ---
+        let mut color = Factor::new("Color", false);
+        let _ = color.push("Red");
+        let _ = color.push("Blue");
+        let _ = color.push("Green");
+        color.one_hot = true;
+
+        let mut number = Factor::new("Number", false);
+        let _ = number.push("1");
+        let _ = number.push("2");
+        let _ = number.push("3");
+        number.one_hot = true;
+
+        // --- Insert into DataTable ---
+        let mut data = DataTable::default();
+        data.factors.insert("Color".to_string(), color);
+        data.factors.insert("Number".to_string(), number);
+
+        // --- Save to JSON ---
+        data.save_factors(&factors_path)?;
+
+        // --- Load from JSON ---
+        data.factors = HashMap::new();
+        data.load_factors(&factors_path)?;
+        let loaded_factors = &data.factors;
+
+        // Check factors exist
+        assert!(loaded_factors.contains_key("Color"));
+        assert!(loaded_factors.contains_key("Number"));
+
+        // Check levels
+        let color = loaded_factors.get("Color").unwrap();
+        assert_eq!(color.get_levels(), vec!["Red", "Blue", "Green"]);
+        assert!(color.one_hot);
+
+        let number = loaded_factors.get("Number").unwrap();
+        assert_eq!(number.get_levels(), vec!["1", "2", "3"]);
+        assert!(number.one_hot);
+
+        Ok(())
+    }
+
+
     #[test]
     fn test_modify_levels() {
         // --- Setup ---
@@ -376,7 +432,7 @@ mod tests {
         // --- Modify subset of levels ---
         let levels_to_change = vec!["Red".to_string(), "Green".to_string()];
         let new_values = vec![10.0, 30.0];
-        factor.modify_levels(&new_values, Some(&levels_to_change));
+        let _ = factor.modify_levels(&new_values, Some(&levels_to_change));
 
         assert_eq!(*factor.level_to_index.get("Red").unwrap(), 10.0);
         assert_eq!(*factor.level_to_index.get("Green").unwrap(), 30.0);
@@ -384,7 +440,7 @@ mod tests {
 
         // --- Overwrite all levels ---
         let all_new_values = vec![100.0, 200.0, 300.0];
-        factor.modify_levels(&all_new_values, None);
+        let _ = factor.modify_levels(&all_new_values, None);
 
         assert_eq!(*factor.level_to_index.get("Red").unwrap(), 100.0);
         assert_eq!(*factor.level_to_index.get("Blue").unwrap(), 200.0);

@@ -37,20 +37,20 @@ impl Default for DataTable {
 
 impl fmt::Display for DataTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "DataTable Summary:")?;
-        writeln!(
+        let _ = writeln!(f, "DataTable Summary:")?;
+        let _ = writeln!(
             f,
             "Rows: {}, Columns: {}",
             self.numeric_data.nrows(),
             self.numeric_data.ncols()
         )?;
-        writeln!(f, "Headers:")?;
+        let _ = writeln!(f, "Headers:")?;
         for (idx, header) in self.headers.iter().enumerate() {
-            writeln!(f, "  {}: {}", idx, header)?;
+            let _ = writeln!(f, "  {}: {}", idx, header)?;
         }
         writeln!(f, "Factors:")?;
         for factor in self.factors.values() {
-            writeln!(f, "{}", factor);
+            let _ = writeln!(f, "{}", factor);
         }
         writeln!(f, "Excluded columns: {:?}", self.exclude)
     }
@@ -90,7 +90,7 @@ impl DataTable {
             .iter()
             .flat_map(|s| {
                 // 💡 handle R-style empty header (rownames column)
-                let header_name = if s.trim().is_empty() {
+                let _ = if s.trim().is_empty() {
                     println!("⚠️ Detected unlabeled first(?) column -> treating as 'barcode'");
                     "barcode".to_string()
                 } else {
@@ -472,20 +472,6 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         (make_subset(train_data), make_subset(test_data))
     }
 
-    fn header_error(&self, i: usize, expanded: usize) -> String {
-        let mut parts: Vec<String> = Vec::with_capacity(self.factors.len() + 1);
-        for factor in self.factors.values() {
-            parts.push(format!("{}", factor));
-        }
-        parts.push(format!(
-            "Headers have the length {} and we would want id {}:\n{}",
-            self.headers.len(),
-            i + expanded,
-            self.headers(20).join("\n")
-        ));
-
-        parts.join("\n")
-    }
 
     pub fn data_summary(&self) {
         println!(
@@ -515,13 +501,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         }
     }
 
-    fn factors_extra_columns(&self) -> usize {
-        let mut ret = 0;
-        for factor in &self.factors {
-            ret += factor.1.extra_columns()
-        }
-        ret
-    }
+
 
     /// Remove all rows that contain any NaN in numeric_data
     pub fn filter_all_na_rows(&mut self, usable: &Vec<String>) {
@@ -939,7 +919,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         for i in 0..self.numeric_data.nrows() {
             let mut record: Vec<String> = Vec::with_capacity(self.headers.len());
 
-            for (j, col_name) in self.headers.iter().enumerate() {
+            for (j, _col_name) in self.headers.iter().enumerate() {
                 let val = self.numeric_data[[i, j]];
                 if val.is_nan() {
                     record.push("NA".to_string());
@@ -981,74 +961,16 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
     }
 }
 
+
+
 #[cfg(test)]
-mod tests_one_hot_factors {
-    use super::*;
-    use std::path::PathBuf;
-    use crate::DataTable;
-    use crate::Factor;
-    
-
-    #[test]
-    fn test_save_and_load_factors() -> Result<(), Box<dyn std::error::Error>> {
-        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let factors_path = dir.as_path().join("factors.json");
-
-        // --- Create Factors ---
-        let mut color = Factor::new("Color", false);
-        let _ = color.push("Red");
-        let _ = color.push("Blue");
-        let _ = color.push("Green");
-        color.one_hot = true;
-
-        let mut number = Factor::new("Number", false);
-        let _ = number.push("1");
-        let _ = number.push("2");
-        let _ = number.push("3");
-        number.one_hot = true;
-
-        // --- Insert into DataTable ---
-        let mut data = DataTable::default();
-        data.factors.insert("Color".to_string(), color);
-        data.factors.insert("Number".to_string(), number);
-
-        // --- Save to JSON ---
-        data.save_factors(&factors_path)?;
-
-        // --- Load from JSON ---
-        data.factors = HashMap::new();
-        data.load_factors(&factors_path)?;
-        let loaded_factors = &data.factors;
-
-        // Check factors exist
-        assert!(loaded_factors.contains_key("Color"));
-        assert!(loaded_factors.contains_key("Number"));
-
-        // Check levels
-        let color = loaded_factors.get("Color").unwrap();
-        assert_eq!(color.get_levels(), vec!["Red", "Blue", "Green"]);
-        assert!(color.one_hot);
-
-        let number = loaded_factors.get("Number").unwrap();
-        assert_eq!(number.get_levels(), vec!["1", "2", "3"]);
-        assert!(number.one_hot);
-
-        Ok(())
-    }
-}
-
-
-mod tests_survival_data_from_file_one_hot_factors {
-    
-    
-    use std::path::PathBuf;
+mod tests{
     use std::collections::HashSet;
-    use crate::DataTable;
-    use crate::Factor;
     use std::fs::File;
     use std::io::Write;
+    use std::path::PathBuf;
 
-    
+    use crate::{DataTable, Factor};
 
     #[test]
     fn test_survivaldata_one_hot_factors() -> Result<(), Box<dyn std::error::Error>> {
@@ -1090,7 +1012,7 @@ Na,Na
         temp.factors.insert("Color".to_string(), color);
         temp.factors.insert("Number".to_string(), number);
 
-        temp.save_factors(&factors_path); //default location
+        let _ = temp.save_factors(&factors_path); //default location
         let categorical_cols = HashSet::<String>::new();
         // --- Load DataTable ---
         let data = DataTable::from_file(&csv_path, b',', categorical_cols, &factors_path)?;
@@ -1138,7 +1060,7 @@ Na,Na
         // --- Expected one-hot values per row ---
         // Rows: Color = Red, Blue, Blue, Green, Blue, Red, NA, NA
         //       Number = 1,2,1,3,2,1,NA,NA
-        let expected_color = vec![
+        let expected_color = [
             (1.0, 0.0, 0.0),                // Red
             (0.0, 1.0, 0.0),                // Blue
             (0.0, 1.0, 0.0),                // Blue
@@ -1149,7 +1071,7 @@ Na,Na
             (f64::NAN, f64::NAN, f64::NAN), // NA
         ];
 
-        let expected_number = vec![
+        let expected_number = [
             (1.0, 0.0, 0.0),                // 1
             (0.0, 1.0, 0.0),                // 2
             (1.0, 0.0, 0.0),                // 1
@@ -1373,7 +1295,7 @@ Na,Na
         // 1️⃣ create a new dataset column with 10 entries
         sd.add_dataset("group_000", true, Some(10));
         assert!(sd.factors.contains_key("group_000"));
-        let f = sd.factors.get("group_000").unwrap();
+        let _ = sd.factors.get("group_000").unwrap();
         assert!(
             sd.numeric_data[[0, 3]].is_nan(),
             "initially we have NaN here"
