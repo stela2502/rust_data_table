@@ -10,6 +10,7 @@ use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct DataTable {
@@ -1037,6 +1038,8 @@ mod tests_one_hot_factors {
 
 #[cfg(test)]
 use std::path::PathBuf;
+use std::collections::HashSet;
+use crate::DataTable;
 
 mod tests_survival_data_from_file_one_hot_factors {
     
