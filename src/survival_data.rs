@@ -504,7 +504,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
 
 
     /// Remove all rows that contain any NaN in numeric_data
-    pub fn filter_all_na_rows(&mut self, usable: &Vec<String>) {
+    pub fn filter_all_na_rows(&mut self, usable: &[String] ) {
         let n_rows = self.numeric_data.nrows();
         let n_cols = self.numeric_data.ncols();
         println!(
