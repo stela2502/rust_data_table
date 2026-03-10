@@ -1037,14 +1037,14 @@ mod tests_one_hot_factors {
 }
 
 #[cfg(test)]
-use std::path::PathBuf;
-use std::collections::HashSet;
-use crate::DataTable;
+
 
 mod tests_survival_data_from_file_one_hot_factors {
     
     
-    
+    use std::path::PathBuf;
+    use std::collections::HashSet;
+    use crate::DataTable;
     
     
 
