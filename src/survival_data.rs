@@ -985,7 +985,11 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
 #[cfg(test)]
 mod tests_one_hot_factors {
     use super::*;
-    
+    use std::path::PathBuf;
+    use std::collections::HashSet;
+    use crate::DataTable;
+    use crate::Factor;
+    use std::fs::File;
     
 
     #[test]
@@ -1043,7 +1047,9 @@ mod tests_survival_data_from_file_one_hot_factors {
     use std::path::PathBuf;
     use std::collections::HashSet;
     use crate::DataTable;
-    
+    use crate::Factor;
+    use std::fs::File;
+
     
 
     #[test]
