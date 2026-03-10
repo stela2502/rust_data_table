@@ -37,16 +37,16 @@ impl Default for DataTable {
 
 impl fmt::Display for DataTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let _ = writeln!(f, "DataTable Summary:")?;
-        let _ = writeln!(
+        writeln!(f, "DataTable Summary:")?;
+        writeln!(
             f,
             "Rows: {}, Columns: {}",
             self.numeric_data.nrows(),
             self.numeric_data.ncols()
         )?;
-        let _ = writeln!(f, "Headers:")?;
+        writeln!(f, "Headers:")?;
         for (idx, header) in self.headers.iter().enumerate() {
-            let _ = writeln!(f, "  {}: {}", idx, header)?;
+            writeln!(f, "  {}: {}", idx, header)?;
         }
         writeln!(f, "Factors:")?;
         for factor in self.factors.values() {
@@ -569,7 +569,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
             keep_rows.len()
         );
     }
-
+    #[allow(clippy::doc_overindented_list_items)]
     /// Impute missing values in `numeric_data` using K-nearest neighbours.
     ///
     /// * `k` – number of neighbours to use (e.g. 3 for “mean of 3 closest”).
@@ -599,6 +599,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
             let std = var.sqrt().max(eps);
             col_means[j] = mean;
             col_stds[j] = std;
+            #[allow(clippy::needless_range_loop)]
             for j in 0..n_cols {
                 if self.factors.contains_key(&self.headers[j]) {
                     // factor column → use mode of non-NA values
