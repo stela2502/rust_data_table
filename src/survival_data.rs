@@ -1040,6 +1040,13 @@ mod tests_one_hot_factors {
 
 mod tests_survival_data_from_file_one_hot_factors {
     
+    
+    use std::path::PathBuf;
+    use std::collections::HashSet;
+    use crate::DataTable;
+    use crate::Factor;
+    use std::fs::File;
+    use std::io::Write;
 
     
 
