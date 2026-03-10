@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet};
 use anyhow::Result;
-use serde::{Serialize, Deserialize};
-use serde_json;
-use std::fmt;
-use ordered_float::OrderedFloat;
 use ndarray::Array2;
+use ordered_float::OrderedFloat;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 /// Only save labels in JSON
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,20 +12,19 @@ pub struct FactorJson {
     pub column: String,
     pub levels: Vec<String>,
     pub numeric: Option<Vec<f64>>,
-    pub matching:Option<Vec<String>>, 
+    pub matching: Option<Vec<String>>,
     pub one_hot: bool, // NEW
 }
 
 #[derive(Debug, Clone)]
 pub struct Factor {
     pub column_name: String,
-    levels: Vec<String>,              // level labels
-    level_to_index: HashMap<String, f64>, // fast lookup
+    levels: Vec<String>,                                // level labels
+    level_to_index: HashMap<String, f64>,               // fast lookup
     index_to_level: HashMap<OrderedFloat<f64>, String>, // <-- instead of a indices vector
-    matching:Option<Vec<String>>, // this could match to multiple column names. Like SNP or something
-    pub one_hot: bool, // NEW
+    matching: Option<Vec<String>>, // this could match to multiple column names. Like SNP or something
+    pub one_hot: bool,             // NEW
 }
-
 
 impl fmt::Display for Factor {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -37,9 +36,7 @@ impl fmt::Display for Factor {
     }
 }
 
-
 impl Factor {
-    
     /// Create a new Factor with a column name and one_hot flag
     pub fn new(column_name: &str, one_hot: bool) -> Self {
         Factor {
@@ -108,7 +105,6 @@ impl Factor {
         Ok(())
     }
 
-
     /// Subset factor with **extreme verbosity**.
     pub fn subset(&self, data: &Array2<f64>, col_id: usize) -> Self {
         //println!("➡️ Starting subset for factor '{}', column id {}", self.column_name, col_id);
@@ -143,8 +139,10 @@ impl Factor {
                 //println!("    ➕ Adding new level '{}' with numeric {}", lvl, val);
                 new_factor.levels.push(lvl.clone());
                 new_factor.level_to_index.insert(lvl.clone(), val);
-                new_factor.index_to_level.insert(OrderedFloat(val), lvl.clone());
-            } 
+                new_factor
+                    .index_to_level
+                    .insert(OrderedFloat(val), lvl.clone());
+            }
         }
 
         /*println!("🏁 Subset complete!");
@@ -155,36 +153,29 @@ impl Factor {
         new_factor
     }
 
-
-
     pub fn extra_columns(&self) -> usize {
-        if self.one_hot {
-            self.levels.len()
-        }else {
-            0
-        }
+        if self.one_hot { self.levels.len() } else { 0 }
     }
 
     /// returns all one_hot column names or the original colum, name only
-    pub fn all_column_names(&self ) -> Vec<String> {
+    pub fn all_column_names(&self) -> Vec<String> {
         if self.one_hot {
-             self
-                .levels
+            self.levels
                 .iter()
-                .map(|lvl| self.build_one_hot_column(lvl)).collect()
-        }else {
+                .map(|lvl| self.build_one_hot_column(lvl))
+                .collect()
+        } else {
             //vec![]
-            vec![ self.column_name.to_string() ]
+            vec![self.column_name.to_string()]
         }
     }
 
-    fn build_one_hot_column( &self, value:&str) -> String {
+    fn build_one_hot_column(&self, value: &str) -> String {
         if self.one_hot {
             format!("{}_{}", self.column_name, value)
-        }else {
+        } else {
             self.column_name.clone()
         }
-        
     }
 
     // Return (and possibly insert) the numeric index for a given level.
@@ -208,7 +199,8 @@ impl Factor {
                 let new_idx = self.levels.len() as f64;
                 self.levels.push(trimmed.to_string());
                 self.level_to_index.insert(trimmed.to_string(), new_idx);
-                self.index_to_level.insert(OrderedFloat(new_idx), trimmed.to_string());
+                self.index_to_level
+                    .insert(OrderedFloat(new_idx), trimmed.to_string());
             }
             return 1.0;
         }
@@ -220,7 +212,8 @@ impl Factor {
             let new_idx = self.levels.len() as f64;
             self.levels.push(trimmed.to_string());
             self.level_to_index.insert(trimmed.to_string(), new_idx);
-            self.index_to_level.insert(OrderedFloat(new_idx), trimmed.to_string());
+            self.index_to_level
+                .insert(OrderedFloat(new_idx), trimmed.to_string());
             new_idx
         }
     }
@@ -240,7 +233,11 @@ impl Factor {
 
             // all other levels become zero columns
             let zero_cols = self.all_column_names();
-            let zero_cols_option = if zero_cols.len() == 1 { None } else { Some(zero_cols) };
+            let zero_cols_option = if zero_cols.len() == 1 {
+                None
+            } else {
+                Some(zero_cols)
+            };
 
             (idx, self.build_one_hot_column(trimmed), zero_cols_option)
         } else {
@@ -249,16 +246,15 @@ impl Factor {
         }
     }
 
-
-    pub fn get_f64( &self, trimmed: &str ) ->f64  {
-       *self.level_to_index.get(trimmed).unwrap_or( &f64::NAN )
+    pub fn get_f64(&self, trimmed: &str) -> f64 {
+        *self.level_to_index.get(trimmed).unwrap_or(&f64::NAN)
     }
 
     pub fn get_levels(&self) -> &[String] {
         &self.levels
     }
-    pub fn get_string(&self, value:f64 ) -> String {
-        match self.index_to_level.get( &OrderedFloat(value)){
+    pub fn get_string(&self, value: f64) -> String {
+        match self.index_to_level.get(&OrderedFloat(value)) {
             Some(string) => string.to_string(),
             None => "NA".to_string(),
         }
@@ -267,7 +263,8 @@ impl Factor {
     /// Create Factor from FactorDef
     pub fn from_def(def: &FactorJson) -> Self {
         let mut level_to_index: std::collections::HashMap<String, f64> = HashMap::new();
-        let mut index_to_level: std::collections::HashMap<OrderedFloat<f64>, String> = HashMap::new();
+        let mut index_to_level: std::collections::HashMap<OrderedFloat<f64>, String> =
+            HashMap::new();
 
         match &def.numeric {
             Some(numbers) => {
@@ -275,7 +272,7 @@ impl Factor {
                     level_to_index.insert(lvl.clone(), num);
                     index_to_level.insert(OrderedFloat(num), lvl.clone());
                 }
-            },
+            }
             None => {
                 for (i, lvl) in def.levels.iter().enumerate() {
                     let num = i as f64;
@@ -284,7 +281,6 @@ impl Factor {
                 }
             }
         }
-
 
         Factor {
             column_name: def.column.to_string(),
@@ -298,7 +294,8 @@ impl Factor {
 
     /// Convert Factor into JSON representation
     pub fn as_json(&self, column: &str) -> FactorJson {
-        let numeric: Vec<f64> = self.levels
+        let numeric: Vec<f64> = self
+            .levels
             .iter()
             .map(|name| {
                 self.level_to_index.get(name).copied().unwrap_or_else(|| {
@@ -323,7 +320,11 @@ impl Factor {
     /// # Arguments
     /// * `numeric_values` - New numeric values to assign.
     /// * `levels_to_change` - Optional subset of levels to modify. If `None`, all levels are overwritten in order.
-    pub fn modify_levels(&mut self, numeric_values: &[f64], levels_to_change: Option<&[String]>) -> Result<(),String>{
+    pub fn modify_levels(
+        &mut self,
+        numeric_values: &[f64],
+        levels_to_change: Option<&[String]>,
+    ) -> Result<(), String> {
         match levels_to_change {
             Some(levels) => {
                 // Modify only the specified levels
@@ -332,20 +333,22 @@ impl Factor {
                         self.level_to_index.insert(lvl.clone(), val);
                         self.index_to_level.insert(OrderedFloat(val), lvl.clone());
                     } else {
-                         return Err( format!("Level '{}' does not exist in factor '{}'", lvl, self.column_name))
+                        return Err(format!(
+                            "Level '{}' does not exist in factor '{}'",
+                            lvl, self.column_name
+                        ));
                     }
                 }
             }
             None => {
                 // Overwrite all levels in order
                 if numeric_values.len() != self.levels.len() {
-                    return Err( format!(
-                            "Length mismatch: {} numeric values, but factor '{}' has {} levels",
-                            numeric_values.len(),
-                            self.column_name,
-                            self.levels.len()
-                        )
-                    );
+                    return Err(format!(
+                        "Length mismatch: {} numeric values, but factor '{}' has {} levels",
+                        numeric_values.len(),
+                        self.column_name,
+                        self.levels.len()
+                    ));
                 }
                 for (lvl, &val) in self.levels.iter().zip(numeric_values.iter()) {
                     self.level_to_index.insert(lvl.clone(), val);
@@ -389,20 +392,33 @@ mod tests {
         assert_eq!(*factor.level_to_index.get("Green").unwrap(), 300.0);
 
         // --- Test panic for non-existing level ---
-        
-        assert!( 
-            factor.modify_levels(&[1.0], Some(&vec!["Yellow".to_string()])).is_err(), 
-            "Should panic when modifying non-existing level" 
+
+        assert!(
+            factor
+                .modify_levels(&[1.0], Some(&vec!["Yellow".to_string()]))
+                .is_err(),
+            "Should panic when modifying non-existing level"
         );
-        
-        assert!(factor.modify_levels(&[1.0, 2.0], None).is_err(), "Should panic for length mismatch");
+
+        assert!(
+            factor.modify_levels(&[1.0, 2.0], None).is_err(),
+            "Should panic for length mismatch"
+        );
     }
 
     #[test]
     fn test_push_one_hot() {
         let mut f = Factor::new("Color", false);
-        assert_eq!( f.push("Red"), (0.0,"Color".to_string(), None), "new factor Red gets 0");
-        assert_eq!( f.push("Blue"), (1.0,"Color".to_string(), None), "new factor Blue gets 1");
+        assert_eq!(
+            f.push("Red"),
+            (0.0, "Color".to_string(), None),
+            "new factor Red gets 0"
+        );
+        assert_eq!(
+            f.push("Blue"),
+            (1.0, "Color".to_string(), None),
+            "new factor Blue gets 1"
+        );
         let (idx, col, opt) = f.push("NA");
         assert!(idx.is_nan(), "new factor NA should be NaN");
         assert_eq!(col, "Color");
@@ -413,36 +429,58 @@ mod tests {
         let (idx, col_to_add, all_cols) = f.push("Red");
         assert_eq!(idx, 1.0);
         assert_eq!(col_to_add, "Color_Red");
-        assert_eq!(all_cols.unwrap(), vec!["Color_Red".to_string(),"Color_Blue".to_string() ]);
+        assert_eq!(
+            all_cols.unwrap(),
+            vec!["Color_Red".to_string(), "Color_Blue".to_string()]
+        );
 
         // Push another value "Blue"
         let (idx, col_to_add, all_cols) = f.push("Blue");
         assert_eq!(idx, 1.0);
         assert_eq!(col_to_add, "Color_Blue");
-        assert_eq!(all_cols.unwrap(), vec!["Color_Red".to_string(),"Color_Blue".to_string() ]);
-
+        assert_eq!(
+            all_cols.unwrap(),
+            vec!["Color_Red".to_string(), "Color_Blue".to_string()]
+        );
 
         // Now push a missing value
         let (idx, col_to_add, all_cols) = f.push("NA");
         assert!(idx.is_nan());
         assert_eq!(col_to_add, "Color_NA");
-        assert_eq!(all_cols.unwrap(), vec!["Color_Red".to_string(),"Color_Blue".to_string() ]);
+        assert_eq!(
+            all_cols.unwrap(),
+            vec!["Color_Red".to_string(), "Color_Blue".to_string()]
+        );
     }
 
     #[test]
     fn test_push_categorical_indexed() {
-
-
         let mut f = Factor::new("Color", false);
-        assert_eq!( f.push("Red"), (0.0,"Color".to_string(), None), "new factor Red gets 0");
-        assert_eq!( f.push("Blue"), (1.0,"Color".to_string(), None), "new factor Blue gets 1");
+        assert_eq!(
+            f.push("Red"),
+            (0.0, "Color".to_string(), None),
+            "new factor Red gets 0"
+        );
+        assert_eq!(
+            f.push("Blue"),
+            (1.0, "Color".to_string(), None),
+            "new factor Blue gets 1"
+        );
         let (idx, col, opt) = f.push("NA");
         assert!(idx.is_nan(), "new factor NA should be NaN");
         assert_eq!(col, "Color");
         assert_eq!(opt, None);
 
-        assert_eq!( f.push("Red"), (0.0,"Color".to_string(), None), "2# new factor Red gets 0");
-        assert_eq!( f.push("Blue"), (1.0,"Color".to_string(), None), "2# new factor Blue gets 1");
+        assert_eq!(
+            f.push("Red"),
+            (0.0, "Color".to_string(), None),
+            "2# new factor Red gets 0"
+        );
+        assert_eq!(
+            f.push("Blue"),
+            (1.0, "Color".to_string(), None),
+            "2# new factor Blue gets 1"
+        );
         let (idx, col, opt) = f.push("NA");
         assert!(idx.is_nan(), "2# new factor NA should be NaN");
         assert_eq!(col, "Color");
@@ -458,46 +496,62 @@ mod tests {
             ("Red".into(), 0.0),
             ("Blue".into(), 1.0),
             ("Green".into(), 2.0),
-        ].into_iter().collect();
+        ]
+        .into_iter()
+        .collect();
         factor.index_to_level = vec![
             (OrderedFloat(0.0), "Red".into()),
             (OrderedFloat(1.0), "Blue".into()),
             (OrderedFloat(2.0), "Green".into()),
-        ].into_iter().collect();
+        ]
+        .into_iter()
+        .collect();
 
         // --- Step 2: Create row data (Array2) ---
         let data = array![
-            [0.0], // Red
-            [2.0], // Green
-            [2.0], // Green
+            [0.0],      // Red
+            [2.0],      // Green
+            [2.0],      // Green
             [f64::NAN], // Missing
-            [0.0], // Red
+            [0.0],      // Red
         ];
 
         // --- Step 3: Subset factor using column 0 ---
         let mut new_factor = factor.subset(&data, 0);
 
         // --- Step 4: Assertions ---
-        let expected_levels = vec!["Red".to_string(), "Green".to_string() ];
-        assert_eq!(new_factor.levels, expected_levels, "Levels should preserve first appearance order");
+        let expected_levels = vec!["Red".to_string(), "Green".to_string()];
+        assert_eq!(
+            new_factor.levels, expected_levels,
+            "Levels should preserve first appearance order"
+        );
 
         let mut expected_level_to_index: HashMap<String, f64> = HashMap::new();
         expected_level_to_index.insert("Red".into(), 0.0);
         expected_level_to_index.insert("Green".into(), 2.0);
         //expected_level_to_index.insert("Green".into(), 2.0);
-        assert_eq!(new_factor.level_to_index, expected_level_to_index, "level_to_index mapping should be preserved");
+        assert_eq!(
+            new_factor.level_to_index, expected_level_to_index,
+            "level_to_index mapping should be preserved"
+        );
 
         let mut expected_index_to_level: HashMap<OrderedFloat<f64>, String> = HashMap::new();
         expected_index_to_level.insert(OrderedFloat(0.0), "Red".into());
         expected_index_to_level.insert(OrderedFloat(2.0), "Green".into());
         //expected_index_to_level.insert(OrderedFloat(2.0), "Green".into());
-        assert_eq!(new_factor.index_to_level, expected_index_to_level, "index_to_level mapping should be preserved");
+        assert_eq!(
+            new_factor.index_to_level, expected_index_to_level,
+            "index_to_level mapping should be preserved"
+        );
 
-        assert_eq!( new_factor.push( "Green" ), factor.push("Green"), "Get the same value for 'Blue' from both factors"  );
+        assert_eq!(
+            new_factor.push("Green"),
+            factor.push("Green"),
+            "Get the same value for 'Blue' from both factors"
+        );
 
         // --- Step 5: Print for braggy verification ---
         println!("Original factor: {:?}", factor);
         println!("Subset factor: {:?}", new_factor);
     }
-
 }

@@ -1,5 +1,5 @@
-pub mod survival_data;
 pub mod factor;
+pub mod survival_data;
 
-pub use survival_data::DataTable;
 pub use factor::Factor;
+pub use survival_data::DataTable;

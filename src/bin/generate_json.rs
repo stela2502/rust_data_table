@@ -1,8 +1,8 @@
 // generate_json.rs
 
+use clap::{Arg, Command};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use clap::{Arg, Command};
 use stela_data_table::DataTable;
 
 fn main() -> anyhow::Result<()> {
@@ -84,9 +84,10 @@ NOTES:
         .unwrap_or_else(|| {
             let mut p = input_path.clone();
             // Remove existing extension (.tsv, .csv, etc.)
-            p.set_extension(""); 
+            p.set_extension("");
             // Append the new suffix
-            let mut new_name = p.file_name()
+            let mut new_name = p
+                .file_name()
                 .and_then(|n| n.to_str())
                 .map(|n| format!("{}.factors.json", n))
                 .unwrap_or_else(|| "factors.json".to_string());
@@ -94,7 +95,7 @@ NOTES:
             p
         });
 
-    if factors_file.exists(){
+    if factors_file.exists() {
         println!("factors file already exists - no need to run this.");
         return Ok(());
     }
@@ -106,17 +107,12 @@ NOTES:
         eprintln!("💥 Internal panic: {}", info);
     }));
 
-    match DataTable::from_file(
-        &input_path,
-        delimiter,
-        categorical_cols,
-        &factors_file
-    ) {
+    match DataTable::from_file(&input_path, delimiter, categorical_cols, &factors_file) {
         Ok(_) => println!("This is strange - this should actually fail here!"),
         Err(e) => {
-            println!("The hoefully expected error from the lib: {:?}",e);
+            println!("The hoefully expected error from the lib: {:?}", e);
             ()
-        },
+        }
     }
 
     println!("✅ JSON successfully written to {:?}", factors_file);
