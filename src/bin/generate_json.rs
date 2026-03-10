@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use clap::{Arg, Command};
-use rust_data_table::SurvivalData;
+use rust_data_table::DataTable;
 
 fn main() -> anyhow::Result<()> {
     let matches = Command::new("generate_json")
@@ -106,7 +106,7 @@ NOTES:
         eprintln!("💥 Internal panic: {}", info);
     }));
 
-    match SurvivalData::from_file(
+    match DataTable::from_file(
         &input_path,
         delimiter,
         categorical_cols,

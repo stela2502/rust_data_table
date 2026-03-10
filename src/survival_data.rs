@@ -14,7 +14,7 @@ use crate::{Factor, factor::FactorJson};
 
 
 #[derive(Debug, Clone)]
-pub struct SurvivalData {
+pub struct DataTable {
     pub headers: Vec<String>,
     pub numeric_data: Array2<f64>,
     pub factors: HashMap<String, Factor>,
@@ -24,9 +24,9 @@ pub struct SurvivalData {
     //pub max_levels: usize,
 }
 
-impl Default for SurvivalData {
+impl Default for DataTable {
     fn default() -> Self {
-        SurvivalData {
+        DataTable {
             headers: Vec::new(),
             numeric_data: Array2::zeros((0, 0)),
             factors: HashMap::new(),
@@ -37,9 +37,9 @@ impl Default for SurvivalData {
     }
 }
 
-impl fmt::Display for SurvivalData {
+impl fmt::Display for DataTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "SurvivalData Summary:")?;
+        writeln!(f, "DataTable Summary:")?;
         writeln!(f, "Rows: {}, Columns: {}", self.numeric_data.nrows(), self.numeric_data.ncols())?;
         writeln!(f, "Headers:")?;
         for (idx, header) in self.headers.iter().enumerate() {
@@ -54,7 +54,7 @@ impl fmt::Display for SurvivalData {
 }
 
 
-impl SurvivalData {
+impl DataTable {
 
     /// ------------------------------------------------------------------------
     /// Core loader: reads TSV/CSV file, applies factors if available.
@@ -68,7 +68,7 @@ impl SurvivalData {
         factors_file: FF,
     ) -> Result<Self> {
 
-        let mut ret = SurvivalData::default();
+        let mut ret = DataTable::default();
 
         // --- 1. Load existing factors if the file exists ---
         let factors_path = factors_file.as_ref();
@@ -290,8 +290,8 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
     ///
     /// # Example
     /// ```
-    /// use rust_data_table::SurvivalData;
-    /// let mut data = SurvivalData::default();
+    /// use rust_data_table::DataTable;
+    /// let mut data = DataTable::default();
     /// data.add_dataset("age", false, Some(10));     // first row → needs size
     /// data.add_dataset("treatment", true, None);    // second row → inferred columns
     /// ```
@@ -445,7 +445,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
 
 
     /// Split into train and test by a fraction (e.g. 0.7 = 70% train, 30% test).
-    pub fn train_test_split(&self, train_fraction: f64) -> (SurvivalData, SurvivalData) {
+    pub fn train_test_split(&self, train_fraction: f64) -> (DataTable, DataTable) {
         assert!(train_fraction > 0.0 && train_fraction < 1.0);
 
         let n_rows = self.numeric_data.nrows();
@@ -462,7 +462,7 @@ Each level will be represented as a separate binary column (0/1) if one-hot enco
         let test_data = self.numeric_data.select(Axis(0), test_idx);
 
 
-        let make_subset = |data: Array2<f64>| SurvivalData {
+        let make_subset = |data: Array2<f64>| DataTable {
             headers: self.headers.clone(),
             numeric_data: data,
             factors: self.factors.clone(),
@@ -950,8 +950,8 @@ mod tests_one_hot_factors {
         let _ = number.push("3");
         number.one_hot = true;
 
-        // --- Insert into SurvivalData ---
-        let mut data = SurvivalData::default();
+        // --- Insert into DataTable ---
+        let mut data = DataTable::default();
         data.factors.insert("Color".to_string(), color);
         data.factors.insert("Number".to_string(), number);
 
@@ -1026,14 +1026,14 @@ Na,Na
         let _ = number.push("2");
         let _ = number.push("3");
         number.one_hot = true;
-        let mut temp = SurvivalData::default();
+        let mut temp = DataTable::default();
         temp.factors.insert( "Color".to_string(), color);
         temp.factors.insert( "Number".to_string(), number);
 
         temp.save_factors(&factors_path); //default location
         let categorical_cols= HashSet::<String>::new();
-        // --- Load SurvivalData ---
-        let data = SurvivalData::from_file(&csv_path, b',', categorical_cols, &factors_path)?;
+        // --- Load DataTable ---
+        let data = DataTable::from_file(&csv_path, b',', categorical_cols, &factors_path)?;
 
         // --- Assertions ---
 
@@ -1166,7 +1166,7 @@ Na,Na
 
         // --- Load data ---
         let categorical_cols = HashSet::<String>::new();
-        let data = SurvivalData::from_file(&csv_path, b',', categorical_cols, &factors_path)?;
+        let data = DataTable::from_file(&csv_path, b',', categorical_cols, &factors_path)?;
 
         // --- Split ---
         let (train, test) = data.train_test_split(0.7);
@@ -1190,7 +1190,7 @@ Na,Na
     #[test]
     fn test_update_value_and_update_value_str() {
         // --- Setup ---
-        let mut data = SurvivalData::default();
+        let mut data = DataTable::default();
 
         // Add numeric and factor columns
         data.add_dataset("age", false, Some(10));
@@ -1246,7 +1246,7 @@ Na,Na
 
     #[test]
     fn test_order() {
-        let mut sd = SurvivalData::default();
+        let mut sd = DataTable::default();
 
         // 1️⃣ create a new dataset column with 10 entries
         sd.add_dataset("group_000", true, Some(10));

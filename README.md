@@ -1,8 +1,8 @@
-# SurvivalData Rust Library
+# DataTable Rust Library
 
 ## Overview
 
-The `SurvivalData` crate provides a flexible framework for reading, processing, and managing survival or biomedical data tables that contain both **numeric** and **categorical** (factor) variables.  
+The `DataTable` crate provides a flexible framework for reading, processing, and managing survival or biomedical data tables that contain both **numeric** and **categorical** (factor) variables.  
 It is particularly suited for bioinformatics, epidemiology, and statistical modeling pipelines where tabular datasets must be cleaned, imputed, split, and exported with precise factor-level tracking.
 
 The library handles automatic detection and management of categorical variables through *factor definitions*, supports one-hot encoding, and includes utilities for data filtering, imputation, and persistence to CSV and JSON formats.
@@ -40,7 +40,7 @@ The library handles automatic detection and management of categorical variables 
 
 ```rust
 use std::collections::HashSet;
-use survival_data::SurvivalData;
+use survival_data::DataTable;
 
 fn main() -> anyhow::Result<()> {
     let file_path = "data/example.csv";
@@ -48,7 +48,7 @@ fn main() -> anyhow::Result<()> {
     let categorical: HashSet<String> = ["status".into(), "sex".into()].into();
 
     // Load data, automatically building factors if needed
-    let data = SurvivalData::from_file(file_path, b',', categorical, factors_path)?;
+    let data = DataTable::from_file(file_path, b',', categorical, factors_path)?;
 
     // Clean and impute data
     let usable_features = data.filter_features_by_na(0.1);
@@ -116,7 +116,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 If you need to explain this crate quickly in a chat session, say:
 
-> “This Rust library (`SurvivalData`) helps parse and preprocess survival or biomedical datasets. It automatically handles categorical factors (with optional one-hot encoding), performs data cleaning and imputation, and supports consistent factor definitions via JSON. It’s ideal for preparing structured data for downstream modeling or statistical analysis.”
+> “This Rust library (`DataTable`) helps parse and preprocess survival or biomedical datasets. It automatically handles categorical factors (with optional one-hot encoding), performs data cleaning and imputation, and supports consistent factor definitions via JSON. It’s ideal for preparing structured data for downstream modeling or statistical analysis.”
 
 ---
 
